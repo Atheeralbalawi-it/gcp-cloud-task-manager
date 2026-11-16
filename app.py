@@ -17,7 +17,7 @@ class Task(db.Model):
 with app.app_context():
     db.create_all()
 
-# واجهة محسنة وأنيقة مع زر الحذف
+# واجهة محسنة وأنيقة مع زر الحذف الفعّال
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
