@@ -17,7 +17,7 @@ class Task(db.Model):
 with app.app_context():
     db.create_all()
 
-# واجهة محسنة وأنيقة مع زر الحذف الفعّال
+# واجهة محسنة مع زر الحذف الفعّال
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -31,10 +31,10 @@ HTML_TEMPLATE = """
         form { display: flex; gap: 10px; margin-bottom: 25px; }
         input[type="text"] { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }
         input[type="text"]:focus { border-color: #007bff; }
-        button { padding: 12px 18px; background-color: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; transition: background 0.2s; }
+        button { padding: 12px 18px; background-color: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; }
         button:hover { background-color: #0056b3; }
         ul { list-style-type: none; padding: 0; }
-        li { background: #f8f9fa; margin-bottom: 10px; padding: 12px 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border-right: 5px solid #007bff; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
+        li { background: #f8f9fa; margin-bottom: 10px; padding: 12px 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border-right: 5px solid #007bff; }
         .delete-btn { background-color: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
         .delete-btn:hover { background-color: #c82333; }
     </style>
@@ -83,5 +83,4 @@ def delete_task(id):
     return redirect(url_for('index'))
 
 if _name_ == '_main_':
-    port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
