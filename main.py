@@ -11,10 +11,38 @@ from urllib.parse import urlparse
 
 app = FastAPI(title="Cloud Uptime & API Monitor")
 
-# الخدمات الأساسية
+# الخدمات الأساسية (مفعلة مسبقاً بـ 3 مواقع لتبهر لجنة القبول فوراً)
 monitored_services = [
-    {"id": 1, "name": "Google Cloud", "url": "https://cloud.google.com", "status": "Pending", "latency": 0, "last_checked": "-", "ssl_days": 0, "history": []},
-    {"id": 2, "name": "GitHub API", "url": "https://api.github.com", "status": "Pending", "latency": 0, "last_checked": "-", "ssl_days": 0, "history": []}
+    {
+        "id": 1,
+        "name": "Google",
+        "url": "https://www.google.com",
+        "status": "Pending",
+        "latency": 0,
+        "last_checked": "-",
+        "ssl_days": 0,
+        "history": []
+    },
+    {
+        "id": 2,
+        "name": "GitHub",
+        "url": "https://api.github.com",
+        "status": "Pending",
+        "latency": 0,
+        "last_checked": "-",
+        "ssl_days": 0,
+        "history": []
+    },
+    {
+        "id": 3,
+        "name": "Cloudflare",
+        "url": "https://www.cloudflare.com",
+        "status": "Pending",
+        "latency": 0,
+        "last_checked": "-",
+        "ssl_days": 0,
+        "history": []
+    }
 ]
 
 class ServiceCreate(BaseModel):
@@ -88,7 +116,7 @@ def add_service(service: ServiceCreate):
     monitored_services.append(new_item)
     check_services()
     return new_item
-    
+
 @app.get("/", response_class=HTMLResponse)
 def read_root():
     try:
@@ -96,4 +124,3 @@ def read_root():
             return f.read()
     except Exception:
         return "<h1>Index.html not found</h1>"
-
