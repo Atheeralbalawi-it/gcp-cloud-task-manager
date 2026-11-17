@@ -4,19 +4,19 @@ from pydantic import BaseModel
 from apscheduler.schedulers.background import BackgroundScheduler
 import httpx
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 import ssl
 import socket
 from urllib.parse import urlparse
 
 app = FastAPI(title="Cloud Uptime & API Monitor")
 
-# الخدمات الأساسية (مفعلة مسبقاً بـ 3 مواقع لتبهر لجنة القبول فوراً)
+# الخدمات الأساسية المفعلة مسبقاً لتعمل فور فتح الموقع
 monitored_services = [
     {
         "id": 1,
         "name": "Google",
-        "url": "https://www.google.com",
+        "url": "https://google.com",
         "status": "Pending",
         "latency": 0,
         "last_checked": "-",
@@ -25,8 +25,8 @@ monitored_services = [
     },
     {
         "id": 2,
-        "name": "GitHub",
-        "url": "https://api.github.com",
+        "name": "GitHub API",
+        "url": "https://github.com",
         "status": "Pending",
         "latency": 0,
         "last_checked": "-",
@@ -36,7 +36,7 @@ monitored_services = [
     {
         "id": 3,
         "name": "Cloudflare",
-        "url": "https://www.cloudflare.com",
+        "url": "https://cloudflare.com",
         "status": "Pending",
         "latency": 0,
         "last_checked": "-",
@@ -53,7 +53,7 @@ def get_ssl_expiry_days(url: str):
     try:
         parsed_url = urlparse(url)
         hostname = parsed_url.hostname
-        if not hostname:
+        if not hostname or parsed_url.scheme != "https":
             return 0
         context = ssl.create_default_context()
         with socket.create_connection((hostname, 443), timeout=3) as sock:
@@ -61,31 +61,36 @@ def get_ssl_expiry_days(url: str):
                 cert = ssock.getpeercert()
                 not_after = cert.get('notAfter')
                 if not_after:
-                    expiry_date = datetime.strptime(not_after, '%b %d %H:%M:%S %Y %Z')
-                    remaining_days = (expiry_date - datetime.utcnow()).days
+                    expiry_date = datetime.strptime(not_after, '%b %d %H:%M:%S %Y %Z').replace(tzinfo=timezone.utc)
+                    remaining_days = (expiry_date - datetime.now(timezone.utc)).days
                     return max(0, remaining_days)
     except Exception:
         return 0
     return 0
 
+def check_single_service(service: dict):
+    start_time = time.time()
+    try:
+        response = httpx.get(service["url"], timeout=5.0, follow_redirects=True)
+        latency = round((time.time() - start_time) * 1000, 2)
+        service["status"] = "Online" if response.status_code < 400 else f"Error {response.status_code}"
+        service["latency"] = latency
+    except Exception:
+        service["status"] = "Offline"
+        service["latency"] = 0
+    
+    if service["ssl_days"] == 0:
+        service["ssl_days"] = get_ssl_expiry_days(service["url"])
+        
+    now = datetime.now().strftime("%H:%M:%S")
+    service["last_checked"] = now
+    service["history"].append({"time": now, "latency": service["latency"]})
+    if len(service["history"]) > 12:
+        service["history"].pop(0)
+
 def check_services():
     for service in monitored_services:
-        start_time = time.time()
-        try:
-            response = httpx.get(service["url"], timeout=5.0)
-            latency = round((time.time() - start_time) * 1000, 2)
-            service["status"] = "Online" if response.status_code < 400 else f"Error {response.status_code}"
-            service["latency"] = latency
-        except Exception:
-            service["status"] = "Offline"
-            service["latency"] = 0
-        
-        service["ssl_days"] = get_ssl_expiry_days(service["url"])
-        now = datetime.now().strftime("%H:%M:%S")
-        service["last_checked"] = now
-        service["history"].append({"time": now, "latency": service["latency"]})
-        if len(service["history"]) > 10:
-            service["history"].pop(0)
+        check_single_service(service)
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(check_services, "interval", seconds=30)
@@ -101,21 +106,33 @@ def get_services():
 
 @app.post("/api/services")
 def add_service(service: ServiceCreate):
-    new_id = len(monitored_services) + 1
-    url = service.url if service.url.startswith("http") else f"https://{service.url}"
+    new_id = max([s["id"] for s in monitored_services], default=0) + 1
+    url = service.url.strip()
+    if not url.startswith(("http://", "https://")):
+        url = f"https://{url}"
+        
     new_item = {
         "id": new_id,
-        "name": service.name,
+        "name": service.name.strip(),
         "url": url,
         "status": "Checking...",
         "latency": 0,
         "last_checked": "-",
-        "ssl_days": get_ssl_expiry_days(url),
+        "ssl_days": 0,
         "history": []
     }
     monitored_services.append(new_item)
-    check_services()
+    check_single_service(new_item)
     return new_item
+
+@app.delete("/api/services/{service_id}")
+def delete_service(service_id: int):
+    global monitored_services
+    initial_len = len(monitored_services)
+    monitored_services = [s for s in monitored_services if s["id"] != service_id]
+    if len(monitored_services) == initial_len:
+        raise HTTPException(status_code=404, detail="Service not found")
+    return {"message": "Service deleted successfully"}
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
