@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cloud Uptime & API Monitor</title>
-    <!-- Tailwind CSS للتنسيق السريع والجميل -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chart.js للرسم البياني -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen p-6">
@@ -14,7 +12,7 @@
         <!-- العنوان -->
         <header class="flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
             <h1 class="text-2xl font-bold text-cyan-400">⚡ Cloud Uptime & API Monitor</h1>
-            <span class="text-xs bg-cyan-900 text-cyan-300 px-3 py-1 rounded-full border border-cyan-700">Live Active</span>
+            <span class="text-xs bg-cyan-900 text-cyan-300 px-3 py-1 rounded-full border border-cyan-700 animate-pulse">Live Active</span>
         </header>
 
         <!-- بطاقات الإحصائيات (KPI Cards) -->
@@ -25,11 +23,11 @@
             </div>
             <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow">
                 <p class="text-gray-400 text-sm">حالة النظام</p>
-                <p class="text-2xl font-bold text-green-400">Stable</p>
+                <p id="system-status" class="text-2xl font-bold text-green-400">Stable</p>
             </div>
             <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow">
-                <p class="text-gray-400 text-sm">نسبة التوفر</p>
-                <p class="text-2xl font-bold text-cyan-400">99.9%</p>
+                <p class="text-gray-400 text-sm">متوسط السرعة</p>
+                <p id="avg-latency" class="text-2xl font-bold text-cyan-400">0 ms</p>
             </div>
             <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow">
                 <p class="text-gray-400 text-sm">وضع التحديث</p>
@@ -48,7 +46,7 @@
         </div>
 
         <!-- جدول عرض الخدمات -->
-        <div class="bg-gray-800 rounded-xl border border-gray-700 shadow overflow-hidden mb-8">
+        <div class="bg-gray-800 rounded-xl border border-gray-700 shadow overflow-x-auto mb-8">
             <table class="w-full text-right border-collapse">
                 <thead>
                     <tr class="bg-gray-700 text-gray-300 text-sm">
@@ -57,10 +55,10 @@
                         <th class="p-4">السرعة (Latency)</th>
                         <th class="p-4">صلاحية SSL</th>
                         <th class="p-4">آخر فحص</th>
+                        <th class="p-4 text-center">إجراء</th>
                     </tr>
                 </thead>
                 <tbody id="services-table" class="divide-y divide-gray-700">
-                    <!-- يتم تعبئتها ديناميكياً عبر الجافاسكريبت -->
                 </tbody>
             </table>
         </div>
@@ -82,39 +80,60 @@
                 
                 document.getElementById('total-services').innerText = data.length;
                 
+                // حساب متوسط السرعة ديناميكياً
+                if (data.length > 0) {
+                    const totalLatency = data.reduce((sum, s) => sum + (s.latency || 0), 0);
+                    const avg = Math.round(totalLatency / data.length);
+                    document.getElementById('avg-latency').innerText = ${avg} ms;
+                } else {
+                    document.getElementById('avg-latency').innerText = '0 ms';
+                }
+
                 const tbody = document.getElementById('services-table');
                 tbody.innerHTML = '';
                 
                 let chartLabels = [];
-                let chartDataSets = [];
 
                 data.forEach((service, index) => {
-                    // أخذ أسماء وقراءات أول خدمة للرسم البياني البسيط
-                    if (index === 0 && service.history.length > 0) {
+                    if (index === 0 && service.history && service.history.length > 0) {
                         chartLabels = service.history.map(h => h.time);
                     }
 
                     const row = document.createElement('tr');
-                    const statusColor = service.status === 'Online' ? 'text-green-400 bg-green-900/30 border-green-800' : 'text-red-400 bg-red-900/30 border-red-800';
+                    row.className = "hover:bg-gray-750 transition";
+                    const statusColor = service.status === 'Online' 
+                        ? 'text-green-400 bg-green-900/30 border-green-800' 
+                        : 'text-red-400 bg-red-900/30 border-red-800';
                     
                     row.innerHTML = `
                         <td class="p-4 font-medium"><a href="${service.url}" target="_blank" class="hover:underline text-cyan-400">${service.name}</a></td>
                         <td class="p-4"><span class="px-2.5 py-1 rounded-full text-xs border ${statusColor}">${service.status}</span></td>
-                        <td class="p-4">${service.latency} ms</td>
+                        <td class="p-4 font-mono">${service.latency} ms</td>
                         <td class="p-4 text-gray-300">${service.ssl_days} يوم باقي</td>
                         <td class="p-4 text-gray-400 text-sm">${service.last_checked}</td>
+                        <td class="p-4 text-center">
+                            <button onclick="deleteService(${service.id})" class="text-red-400 hover:text-red-300 text-xs bg-red-900/20 hover:bg-red-900/40 px-3 py-1 rounded border border-red-800/50 transition">حذف</button>
+                        </td>
                     `;
                     tbody.appendChild(row);
                 });
 
-                // تحديث بيانات الرسم البياني إذا توفرت
-                if (data.length > 0 && data[0].history.length > 0) {
+                if (data.length > 0 && data[0].history && data[0].history.length > 0) {
                     const latencies = data[0].history.map(h => h.latency);
                     updateChart(chartLabels, latencies, data[0].name);
                 }
 
             } catch (err) {
                 console.error("Error fetching data", err);
+            }
+        }
+
+        async function deleteService(id) {
+            try {
+                await fetch(/api/services/${id}, { method: 'DELETE' });
+                fetchServices();
+            } catch (err) {
+                console.error("Error deleting service", err);
             }
         }
 
@@ -169,7 +188,7 @@
 
         initChart();
         fetchServices();
-        setInterval(fetchServices, 10000); // تحديث تلقائي كل 10 ثوانٍ
+        setInterval(fetchServices, 10000);
     </script>
 </body>
 </html>
