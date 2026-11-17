@@ -1,156 +1,58 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
-from apscheduler.schedulers.background import BackgroundScheduler
-import httpx
-import time
-from datetime import datetime, timezone
-import ssl
-import socket
-from urllib.parse import urlparse
-
-app = FastAPI(title="Cloud Uptime & API Monitor")
-
-# 3 مواقع افتراضية مضافة مسبقاً لتعمل وتظهر في الجدول والرسم البياني فور فتح الصفحة
-monitored_services = [
-    {
-        "id": 1,
-        "name": "Google Search",
-        "url": "https://google.com",
-        "status": "Online",
-        "latency": 120,
-        "last_checked": "الآن",
-        "ssl_days": 85,
-        "history": [
-            {"time": "00:01", "latency": 115},
-            {"time": "00:02", "latency": 130},
-            {"time": "00:03", "latency": 120}
-        ]
-    },
-    {
-        "id": 2,
-        "name": "GitHub API",
-        "url": "https://github.com",
-        "status": "Online",
-        "latency": 185,
-        "last_checked": "الآن",
-        "ssl_days": 140,
-        "history": [
-            {"time": "00:01", "latency": 190},
-            {"time": "00:02", "latency": 175},
-            {"time": "00:03", "latency": 185}
-        ]
-    },
-    {
-        "id": 3,
-        "name": "Cloudflare DNS",
-        "url": "https://1.1.1",
-        "status": "Online",
-        "latency": 45,
-        "last_checked": "الآن",
-        "ssl_days": 210,
-        "history": [
-            {"time": "00:01", "latency": 48},
-            {"time": "00:02", "latency": 42},
-            {"time": "00:03", "latency": 45}
-        ]
-    }
-]
-
-class ServiceCreate(BaseModel):
-    name: str
-    url: str
-
-def get_ssl_expiry_days(url: str):
-    try:
-        parsed_url = urlparse(url)
-        hostname = parsed_url.hostname
-        if not hostname or parsed_url.scheme != "https":
-            return 0
-        context = ssl.create_default_context()
-        with socket.create_connection((hostname, 443), timeout=3) as sock:
-            with context.wrap_socket(sock, server_hostname=hostname) as ssock:
-                cert = ssock.getpeercert()
-                not_after = cert.get('notAfter')
-                if not_after:
-                    expiry_date = datetime.strptime(not_after, '%b %d %H:%M:%S %Y %Z').replace(tzinfo=timezone.utc)
-                    remaining_days = (expiry_date - datetime.now(timezone.utc)).days
-                    return max(0, remaining_days)
-    except Exception:
-        return 0
-    return 0
-
-def check_single_service(service: dict):
-    start_time = time.time()
-    try:
-        response = httpx.get(service["url"], timeout=5.0, follow_redirects=True)
-        latency = round((time.time() - start_time) * 1000, 2)
-        service["status"] = "Online" if response.status_code < 400 else f"Error {response.status_code}"
-        service["latency"] = latency
-    except Exception:
-        service["status"] = "Offline"
-        service["latency"] = 0
-    
-    ssl_days = get_ssl_expiry_days(service["url"])
-    if ssl_days > 0:
-        service["ssl_days"] = ssl_days
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدارة المهام السحابية</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-6">
+    <div class="w-full max-w-md bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
+        <h1 class="text-2xl font-bold mb-4 text-center text-blue-400">نظام إدارة المهام السحابي</h1>
         
-    now = datetime.now().strftime("%H:%M:%S")
-    service["last_checked"] = now
-    service["history"].append({"time": now, "latency": service["latency"]})
-    if len(service["history"]) > 12:
-        service["history"].pop(0)
+        <!-- إضافة مهمة جديدة -->
+        <div class="flex gap-2 mb-6">
+            <input type="text" id="taskInput" placeholder="أدخل مهمة جديدة..." class="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500">
+            <button onclick="addTask()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg font-bold transition">إضافة</button>
+        </div>
 
-def check_services():
-    for service in monitored_services:
-        check_single_service(service)
+        <!-- قائمة المهام -->
+        <ul id="taskList" class="space-y-3">
+            <!-- سيتم تعبئة المهام هنا تلقائياً -->
+        </ul>
+    </div>
 
-scheduler = BackgroundScheduler()
-scheduler.add_job(check_services, "interval", seconds=30)
-scheduler.start()
+    <script>
+        // استبدل هذا الرابط برابط خدمة Render الخاصة بك لاحقاً
+        const API_URL = "http://127.0.0.1:5000"; 
 
-@app.on_event("startup")
-def startup_event():
-    check_services()
+        async function fetchTasks() {
+            try {
+                const response = await fetch(${API_URL}/api/tasks);
+                const tasks = await response.json();
+                const list = document.getElementById('taskList');
+                list.innerHTML = '';
+                tasks.forEach(task => {
+                    list.innerHTML += <li class="bg-gray-700 p-3 rounded-lg flex justify-between items-center"><span>${task.title}</span><span class="text-xs ${task.done ? 'text-green-400' : 'text-yellow-400'}">${task.done ? 'منجزة' : 'قيد العمل'}</span></li>;
+                });
+            } catch (error) {
+                console.error("خطأ في جلب المهام:", error);
+            }
+        }
 
-@app.get("/api/services")
-def get_services():
-    return monitored_services
+        async function addTask() {
+            const input = document.getElementById('taskInput');
+            if (!input.value) return;
+            await fetch(${API_URL}/api/tasks, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: input.value })
+            });
+            input.value = '';
+            fetchTasks();
+        }
 
-@app.post("/api/services")
-def add_service(service: ServiceCreate):
-    new_id = max([s["id"] for s in monitored_services], default=0) + 1
-    url = service.url.strip()
-    if not url.startswith(("http://", "https://")):
-        url = f"https://{url}"
-        
-    new_item = {
-        "id": new_id,
-        "name": service.name.strip(),
-        "url": url,
-        "status": "Checking...",
-        "latency": 0,
-        "last_checked": "-",
-        "ssl_days": 0,
-        "history": []
-    }
-    monitored_services.append(new_item)
-    check_single_service(new_item)
-    return new_item
-
-@app.delete("/api/services/{service_id}")
-def delete_service(service_id: int):
-    global monitored_services
-    initial_len = len(monitored_services)
-    monitored_services = [s for s in monitored_services if s["id"] != service_id]
-    if len(monitored_services) == initial_len:
-        raise HTTPException(status_code=404, detail="Service not found")
-    return {"message": "Service deleted successfully"}
-
-@app.get("/", response_class=HTMLResponse)
-def read_root():
-    try:
-        with open("index.html", "r", encoding="utf-8") as f:
-            return f.read()
-    except Exception:
-        return "<h1>Index.html not found</h1>"
+        fetchTasks();
+    </script>
+</body>
+</html>
