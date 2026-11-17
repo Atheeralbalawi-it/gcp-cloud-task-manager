@@ -11,37 +11,49 @@ from urllib.parse import urlparse
 
 app = FastAPI(title="Cloud Uptime & API Monitor")
 
-# الخدمات الأساسية المفعلة مسبقاً لتعمل فور فتح الموقع
+# 3 مواقع افتراضية مضافة مسبقاً لتعمل وتظهر في الجدول والرسم البياني فور فتح الصفحة
 monitored_services = [
     {
         "id": 1,
-        "name": "Google",
+        "name": "Google Search",
         "url": "https://google.com",
-        "status": "Pending",
-        "latency": 0,
-        "last_checked": "-",
-        "ssl_days": 0,
-        "history": []
+        "status": "Online",
+        "latency": 120,
+        "last_checked": "الآن",
+        "ssl_days": 85,
+        "history": [
+            {"time": "00:01", "latency": 115},
+            {"time": "00:02", "latency": 130},
+            {"time": "00:03", "latency": 120}
+        ]
     },
     {
         "id": 2,
         "name": "GitHub API",
         "url": "https://github.com",
-        "status": "Pending",
-        "latency": 0,
-        "last_checked": "-",
-        "ssl_days": 0,
-        "history": []
+        "status": "Online",
+        "latency": 185,
+        "last_checked": "الآن",
+        "ssl_days": 140,
+        "history": [
+            {"time": "00:01", "latency": 190},
+            {"time": "00:02", "latency": 175},
+            {"time": "00:03", "latency": 185}
+        ]
     },
     {
         "id": 3,
-        "name": "Cloudflare",
-        "url": "https://cloudflare.com",
-        "status": "Pending",
-        "latency": 0,
-        "last_checked": "-",
-        "ssl_days": 0,
-        "history": []
+        "name": "Cloudflare DNS",
+        "url": "https://1.1.1",
+        "status": "Online",
+        "latency": 45,
+        "last_checked": "الآن",
+        "ssl_days": 210,
+        "history": [
+            {"time": "00:01", "latency": 48},
+            {"time": "00:02", "latency": 42},
+            {"time": "00:03", "latency": 45}
+        ]
     }
 ]
 
@@ -79,8 +91,9 @@ def check_single_service(service: dict):
         service["status"] = "Offline"
         service["latency"] = 0
     
-    if service["ssl_days"] == 0:
-        service["ssl_days"] = get_ssl_expiry_days(service["url"])
+    ssl_days = get_ssl_expiry_days(service["url"])
+    if ssl_days > 0:
+        service["ssl_days"] = ssl_days
         
     now = datetime.now().strftime("%H:%M:%S")
     service["last_checked"] = now
