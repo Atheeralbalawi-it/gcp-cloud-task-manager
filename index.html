@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة مراقبة الخدمات السحابية</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen p-6 font-sans">
+    <div class="max-w-5xl mx-auto">
+        <!-- الهيدر -->
+        <div class="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-slate-700 pb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-sky-400">☁️ Cloud Uptime & API Monitor</h1>
+                <p class="text-slate-400 text-sm mt-1">مراقبة حية لحالة الخدمات السحابية وسرعة الاستجابة (تحديث تلقائي كل 10 ثوانٍ)</p>
+            </div>
+            <span class="mt-3 md:mt-0 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-full text-xs">
+                ● النظام يعمل سحابياً
+            </span>
+        </div>
+
+        <!-- نموذج إضافة خدمة جديدة -->
+        <form id="addForm" class="bg-slate-800 p-4 rounded-xl border border-slate-700 mb-8 flex flex-col md:flex-row gap-3">
+            <input type="text" id="serviceName" placeholder="اسم الخدمة (مثلاً: موقعي الشخصي)" required
+                class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-sky-500">
+            <input type="text" id="serviceUrl" placeholder="الرابط (مثلاً: https://google.com)" required
+                class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-sky-500" dir="ltr">
+            <button type="submit" class="bg-sky-500 hover:bg-sky-600 text-slate-950 font-bold px-6 py-2 rounded-lg text-sm transition">
+                + إضافة للمراقبة
+            </button>
+        </form>
+
+        <!-- بطاقات الخدمات -->
+        <div id="servicesGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8"></div>
+
+        <!-- الرسم البياني لسرعة الاستجابة -->
+        <div class="bg-slate-800 p-5 rounded-xl border border-slate-700">
+            <h2 class="text-lg font-semibold mb-4 text-slate-200">مؤشر سرعة الاستجابة (Latency - ms)</h2>
+            <canvas id="latencyChart" height="100"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let chart;
+
+        async function fetchServices() {
+            const res = await fetch('/api/services');
+            const services = await res.json();
+            renderServices(services);
+            updateChart(services);
+        }
+
+        function renderServices(services) {
+            const grid = document.getElementById('servicesGrid');
+            grid.innerHTML = services.map(s => {
+                const isOnline = s.status === 'Online';
+                const badgeColor = isOnline ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-rose-500/20 text-rose-400 border-rose-500/40';
+                return `
+                    <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 flex justify-between items-center">
+                        <div>
+                            <h3 class="font-bold text-lg">${s.name}</h3>
+                            <a href="${s.url}" target="_blank" class="text-xs text-sky-400 hover:underline" dir="ltr">${s.url}</a>
+                            <p class="text-xs text-slate-400 mt-2">آخر فحص: ${s.last_checked}</p>
+                        </div>
+                        <div class="text-left">
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold border ${badgeColor}">${s.status}</span>
+                            <p class="text-xl font-mono font-bold mt-2 text-slate-200">${s.latency} <span class="text-xs text-slate-400">ms</span></p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateChart(services) {
+            const ctx = document.getElementById('latencyChart').getContext('2d');
+            const labels = services[0]?.history.map(h => h.time) || [];
+            const colors = ['#38bdf8', '#34d399', '#f472b6', '#fbbf24', '#a78bfa'];
+
+            const datasets = services.map((s, idx) => ({
+                label: s.name,
+                data: s.history.map(h => h.latency),
+                borderColor: colors[idx % colors.length],
+                tension: 0.3,
+                fill: false
+            }));
+
+            if (chart) {
+                chart.data.labels = labels;
+                chart.data.datasets = datasets;
+                chart.update();
+            } else {
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: { labels, datasets },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { labels: { color: '#cbd5e1' } } },
+                        scales: {
+                            x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                            y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+                        }
+                    }
+                });
+            }
+        }
+
+        document.getElementById('addForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('serviceName').value;
+            const url = document.getElementById('serviceUrl').value;
+            await fetch('/api/services', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, url })
+            });
+            document.getElementById('addForm').reset();
+            fetchServices();
+        });
+
+        fetchServices();
+        setInterval(fetchServices, 10000);
+    </script>
+</body>
+</html>
