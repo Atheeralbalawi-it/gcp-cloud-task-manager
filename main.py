@@ -1,37 +1,53 @@
-import os
-from flask import Flask, jsonify, request
-from flask_cors import CORS
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
 
-app = Flask(_name_)
-CORS(app)
+# إعداد قاعدة البيانات
+DATABASE_URL = "sqlite:///./tasks.db"
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
-tasks = [
-    {"id": 1, "title": "مراجعة متطلبات المشروع السحابي", "done": False},
-    {"id": 2, "title": "رفع الكود على GitHub", "done": True}
-]
+# نموذج جدول المهام في قاعدة البيانات
+class TaskModel(Base):
+    _tablename_ = "tasks"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, index=True)
+    status = Column(String, default="pending")
 
-@app.route('/')
-def home():
-    return jsonify({"status": "Online", "message": "Task Manager Microservice API"})
+Base.metadata.create_all(bind=engine)
 
-@app.route('/api/tasks', methods=['GET'])
-def get_tasks():
-    return jsonify(tasks)
+app = FastAPI()
 
-@app.route('/api/tasks', methods=['POST'])
-def add_task():
-    data = request.json
-    if not data or 'title' not in data:
-        return jsonify({"error": "Title is required"}), 400
-    
-    new_task = {
-        "id": len(tasks) + 1,
-        "title": data['title'],
-        "done": data.get('done', False)
-    }
-    tasks.append(new_task)
-    return jsonify(new_task), 201
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-if _name_ == '_main_':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+class TaskCreate(BaseModel):
+    title: str
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@app.get("/api/tasks")
+def get_tasks(db: Session = Depends(get_db)):
+    return db.query(TaskModel).all()
+
+@app.post("/api/tasks")
+def add_task(task: TaskCreate, db: Session = Depends(get_db)):
+    new_task = TaskModel(title=task.title, status="pending")
+    db.add(new_task)
+    db.commit()
+    db.refresh(new_task)
+    return new_task
