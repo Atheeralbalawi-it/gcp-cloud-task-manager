@@ -88,3 +88,12 @@ def add_service(service: ServiceCreate):
     monitored_services.append(new_item)
     check_services()
     return new_item
+    
+@app.get("/", response_class=HTMLResponse)
+def read_root():
+    try:
+        with open("index.html", "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception:
+        return "<h1>Index.html not found</h1>"
+
