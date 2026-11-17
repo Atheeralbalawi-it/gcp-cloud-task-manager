@@ -5,15 +5,15 @@ from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
-# إعداد قاعدة البيانات
 DATABASE_URL = "sqlite:///./tasks.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# نموذج جدول المهام في قاعدة البيانات
+# تعريف جدول المهام (تأكد من وجود _tablename_)
 class TaskModel(Base):
     _tablename_ = "tasks"
+    
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, index=True)
     status = Column(String, default="pending")
