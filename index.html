@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cloud Uptime & API Monitor</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://tailwindcss.com"></script>
+    <script src="https://jsdelivr.net"></script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen p-6">
     <div class="max-w-5xl mx-auto">
@@ -15,7 +15,7 @@
             <span class="text-xs bg-cyan-900 text-cyan-300 px-3 py-1 rounded-full border border-cyan-700 animate-pulse">Live Active</span>
         </header>
 
-        <!-- بطاقات الإحصائيات (KPI Cards) -->
+        <!-- بطاقات الإحصائيات -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
             <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow">
                 <p class="text-gray-400 text-sm">إجمالي المواقع</p>
@@ -40,7 +40,7 @@
             <h2 class="text-lg font-semibold mb-4 text-cyan-300">إضافة موقع جديد للمراقبة</h2>
             <form id="add-form" class="flex flex-col md:flex-row gap-3">
                 <input type="text" id="name" placeholder="اسم الموقع (مثال: My API)" required class="bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 flex-1 focus:outline-none focus:border-cyan-400">
-                <input type="url" id="url" placeholder="الرابط (مثال: https://api.example.com)" required class="bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 flex-1 focus:outline-none focus:border-cyan-400">
+                <input type="url" id="url" placeholder="الرابط (مثال: https://example.com)" required class="bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 flex-1 focus:outline-none focus:border-cyan-400">
                 <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-6 py-2 rounded-lg transition">إضافة ومراقبة</button>
             </form>
         </div>
@@ -63,7 +63,7 @@
             </table>
         </div>
 
-        <!-- الرسم البياني الحي (Live Chart) -->
+        <!-- الرسم البياني الحي -->
         <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow">
             <h2 class="text-lg font-semibold mb-4 text-cyan-300">📈 رسم بياني لسرعة الاستجابة (Latency History)</h2>
             <canvas id="latencyChart" height="100"></canvas>
@@ -80,7 +80,6 @@
                 
                 document.getElementById('total-services').innerText = data.length;
                 
-                // حساب متوسط السرعة ديناميكياً
                 if (data.length > 0) {
                     const totalLatency = data.reduce((sum, s) => sum + (s.latency || 0), 0);
                     const avg = Math.round(totalLatency / data.length);
@@ -118,9 +117,10 @@
                     tbody.appendChild(row);
                 });
 
-                if (data.length > 0 && data[0].history && data[0].history.length > 0) {
-                    const latencies = data[0].history.map(h => h.latency);
-                    updateChart(chartLabels, latencies, data[0].name);
+                const firstService = data.at(0);
+                if (firstService && firstService.history && firstService.history.length > 0) {
+                    const latencies = firstService.history.map(h => h.latency);
+                    updateChart(chartLabels, latencies, firstService.name);
                 }
 
             } catch (err) {
@@ -164,10 +164,13 @@
         }
 
         function updateChart(labels, data, labelName) {
-            myChart.data.labels = labels;
-            myChart.data.datasets[0].data = data;
-            myChart.data.datasets[0].label = سرعة ${labelName} (ms);
-            myChart.update();
+            const dataset = myChart.data.datasets.at(0);
+            if (dataset) {
+                myChart.data.labels = labels;
+                dataset.data = data;
+                dataset.label = سرعة ${labelName} (ms);
+                myChart.update();
+            }
         }
 
         document.getElementById('add-form').addEventListener('submit', async (e) => {
