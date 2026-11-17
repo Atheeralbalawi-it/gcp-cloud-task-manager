@@ -1,21 +1,44 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from apscheduler.schedulers.background import BackgroundScheduler
 import httpx
 import time
 from datetime import datetime
+import ssl
+import socket
+from urllib.parse import urlparse
 
 app = FastAPI(title="Cloud Uptime & API Monitor")
 
+# الخدمات الأساسية
 monitored_services = [
-    {"id": 1, "name": "Google Cloud", "url": "https://cloud.google.com", "status": "Pending", "latency": 0, "last_checked": "-", "history": []},
-    {"id": 2, "name": "GitHub API", "url": "https://api.github.com", "status": "Pending", "latency": 0, "last_checked": "-", "history": []}
+    {"id": 1, "name": "Google Cloud", "url": "https://cloud.google.com", "status": "Pending", "latency": 0, "last_checked": "-", "ssl_days": 0, "history": []},
+    {"id": 2, "name": "GitHub API", "url": "https://api.github.com", "status": "Pending", "latency": 0, "last_checked": "-", "ssl_days": 0, "history": []}
 ]
 
 class ServiceCreate(BaseModel):
     name: str
     url: str
+
+def get_ssl_expiry_days(url: str):
+    try:
+        parsed_url = urlparse(url)
+        hostname = parsed_url.hostname
+        if not hostname:
+            return 0
+        context = ssl.create_default_context()
+        with socket.create_connection((hostname, 443), timeout=3) as sock:
+            with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                cert = ssock.getpeercert()
+                not_after = cert.get('notAfter')
+                if not_after:
+                    expiry_date = datetime.strptime(not_after, '%b %d %H:%M:%S %Y %Z')
+                    remaining_days = (expiry_date - datetime.utcnow()).days
+                    return max(0, remaining_days)
+    except Exception:
+        return 0
+    return 0
 
 def check_services():
     for service in monitored_services:
@@ -29,6 +52,7 @@ def check_services():
             service["status"] = "Offline"
             service["latency"] = 0
         
+        service["ssl_days"] = get_ssl_expiry_days(service["url"])
         now = datetime.now().strftime("%H:%M:%S")
         service["last_checked"] = now
         service["history"].append({"time": now, "latency": service["latency"]})
@@ -42,11 +66,6 @@ scheduler.start()
 @app.on_event("startup")
 def startup_event():
     check_services()
-
-@app.get("/", response_class=HTMLResponse)
-def read_dashboard():
-    with open("index.html", "r", encoding="utf-8") as f:
-        return f.read()
 
 @app.get("/api/services")
 def get_services():
@@ -63,6 +82,7 @@ def add_service(service: ServiceCreate):
         "status": "Checking...",
         "latency": 0,
         "last_checked": "-",
+        "ssl_days": get_ssl_expiry_days(url),
         "history": []
     }
     monitored_services.append(new_item)
