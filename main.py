@@ -1,58 +1,37 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>إدارة المهام السحابية</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-6">
-    <div class="w-full max-w-md bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
-        <h1 class="text-2xl font-bold mb-4 text-center text-blue-400">نظام إدارة المهام السحابي</h1>
-        
-        <!-- إضافة مهمة جديدة -->
-        <div class="flex gap-2 mb-6">
-            <input type="text" id="taskInput" placeholder="أدخل مهمة جديدة..." class="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500">
-            <button onclick="addTask()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg font-bold transition">إضافة</button>
-        </div>
+import os
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 
-        <!-- قائمة المهام -->
-        <ul id="taskList" class="space-y-3">
-            <!-- سيتم تعبئة المهام هنا تلقائياً -->
-        </ul>
-    </div>
+app = Flask(_name_)
+CORS(app)
 
-    <script>
-        // استبدل هذا الرابط برابط خدمة Render الخاصة بك لاحقاً
-        const API_URL = "http://127.0.0.1:5000"; 
+tasks = [
+    {"id": 1, "title": "مراجعة متطلبات المشروع السحابي", "done": False},
+    {"id": 2, "title": "رفع الكود على GitHub", "done": True}
+]
 
-        async function fetchTasks() {
-            try {
-                const response = await fetch(${API_URL}/api/tasks);
-                const tasks = await response.json();
-                const list = document.getElementById('taskList');
-                list.innerHTML = '';
-                tasks.forEach(task => {
-                    list.innerHTML += <li class="bg-gray-700 p-3 rounded-lg flex justify-between items-center"><span>${task.title}</span><span class="text-xs ${task.done ? 'text-green-400' : 'text-yellow-400'}">${task.done ? 'منجزة' : 'قيد العمل'}</span></li>;
-                });
-            } catch (error) {
-                console.error("خطأ في جلب المهام:", error);
-            }
-        }
+@app.route('/')
+def home():
+    return jsonify({"status": "Online", "message": "Task Manager Microservice API"})
 
-        async function addTask() {
-            const input = document.getElementById('taskInput');
-            if (!input.value) return;
-            await fetch(${API_URL}/api/tasks, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: input.value })
-            });
-            input.value = '';
-            fetchTasks();
-        }
+@app.route('/api/tasks', methods=['GET'])
+def get_tasks():
+    return jsonify(tasks)
 
-        fetchTasks();
-    </script>
-</body>
-</html>
+@app.route('/api/tasks', methods=['POST'])
+def add_task():
+    data = request.json
+    if not data or 'title' not in data:
+        return jsonify({"error": "Title is required"}), 400
+    
+    new_task = {
+        "id": len(tasks) + 1,
+        "title": data['title'],
+        "done": data.get('done', False)
+    }
+    tasks.append(new_task)
+    return jsonify(new_task), 201
+
+if _name_ == '_main_':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
